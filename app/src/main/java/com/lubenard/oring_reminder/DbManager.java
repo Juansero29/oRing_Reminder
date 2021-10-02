@@ -27,7 +27,7 @@ public class DbManager extends SQLiteOpenHelper {
     public static final String TAG = "DBManager";
 
     private static final String dbName = "dataDB";
-    private static final int DATABASE_VERSION = 3;
+    private static final int DATABASE_VERSION = 4;
 
     // Ring table
     private static final String ringTable = "ringTable";
@@ -35,8 +35,10 @@ public class DbManager extends SQLiteOpenHelper {
     // If isRunning is 1, the session is running.
     // Otherwise, the session is finished
     private static final String ringTableIsRunning = "isRunning";
-    private static final String ringTablePut = "datetimePut";
-    private static final String ringTableRemoved = "datetimeRemoved";
+    private static final String ringTableDatePut = "datetimePut";
+    private static final String ringTableHourPut = "hourPut";
+    private static final String ringTableDateRemoved = "datetimeRemoved";
+    private static final String ringTableHourRemoved = "hourRemoved";
     // Computed by doing dateTimeRemoved - dateTimePut
     private static final String ringTableTimeWeared = "timeWeared";
 
@@ -73,17 +75,27 @@ public class DbManager extends SQLiteOpenHelper {
     @Override
     public void onCreate(SQLiteDatabase db) {
         // Create apps table
-        db.execSQL("CREATE TABLE " + ringTable + " (" + ringTableId + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                ringTableIsRunning + " INTEGER, " + ringTableTimeWeared + " INTEGER, " +
-                ringTableRemoved + " DATETIME, " + ringTablePut + " DATETIME)");
+        db.execSQL("CREATE TABLE " + ringTable + " (" +
+                ringTableId + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                ringTableIsRunning + " INTEGER, " +
+                ringTableTimeWeared + " INTEGER, " +
+                ringTableDatePut + " TEXT, " +
+                ringTableDateRemoved + " TEXT, " +
+                ringTableHourPut + " TEXT, " +
+                ringTableHourRemoved + " TEXT)");
 
-        db.execSQL("CREATE TABLE " + pausesTable + " (" + pauseTableId + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                pauseTableEntryId + " INTEGER, " + pauseTableIsRunning + " INTEGER, "
-                + pauseTableTimeRemoved + " INTEGER, " + pauseTableRemoved + " DATETIME, "
-                + pauseTablePut + " DATETIME)");
+        db.execSQL("CREATE TABLE " + pausesTable + " (" +
+                pauseTableId + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                pauseTableEntryId + " INTEGER, " +
+                pauseTableIsRunning + " INTEGER, " +
+                pauseTableTimeRemoved + " INTEGER, " +
+                pauseTableRemoved + " DATETIME, " +
+                pauseTablePut + " DATETIME)");
 
-        db.execSQL("CREATE TABLE " + spermoTable + " (" + spermoTableId + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                spermoTableDateAdded + " INTEGER, " + spermoTableFileLocation + " TEXT)");
+        db.execSQL("CREATE TABLE " + spermoTable + " (" +
+                spermoTableId + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                spermoTableDateAdded + " INTEGER, " +
+                spermoTableFileLocation + " TEXT)");
 
         Log.d(TAG, "The db has been created, this message should only appear once.");
     }
@@ -121,6 +133,16 @@ public class DbManager extends SQLiteOpenHelper {
             Log.d(TAG, "Updating db from v1.2.1 to v1.3");
             db.execSQL("CREATE TABLE " + spermoTable + " (" + spermoTableId + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
                     spermoTableDateAdded + " INTEGER, " + spermoTableFileLocation + " TEXT)");
+        } else if (i == 3 && i1 == 4) {
+            // For the v2, the db scheme change. It now split date and hour
+            Log.d(TAG, "Updating db from v1.3 to v2.0");
+            // Get all entry datas from DB
+            ArrayList<RingModel> datasEntry = getAllDatasForAllEntrys();
+            RingModel elem;
+            for (int j = 0; j < datasEntry.size(); j++) {
+                elem = datasEntry.get(i);
+                Log.d(TAG, "Upgrade, eleme.getDatePut is " + elem.getDatePut());
+            }
         }
     }
 
@@ -132,13 +154,16 @@ public class DbManager extends SQLiteOpenHelper {
     public LinkedHashMap<Integer, RingModel> getAllDatasForMainList(boolean isDesc) {
         LinkedHashMap<Integer, RingModel> entryDatas = new LinkedHashMap<>();
 
-        String[] columns = new String[]{ringTableId, ringTablePut, ringTableRemoved, ringTableIsRunning, ringTableTimeWeared};
+        String[] columns = new String[]{ringTableId, ringTableDatePut, ringTableHourPut, ringTableDateRemoved, ringTableHourRemoved, ringTableIsRunning, ringTableTimeWeared};
         Cursor cursor = readableDB.query(ringTable,  columns, null, null, null, null, (isDesc) ? ringTableId + " DESC" : null);
 
         while (cursor.moveToNext()) {
-            entryDatas.put(cursor.getInt(cursor.getColumnIndex(ringTableId)), new RingModel(cursor.getInt(cursor.getColumnIndex(ringTableId)),
-                    cursor.getString(cursor.getColumnIndex(ringTablePut)),
-                    cursor.getString(cursor.getColumnIndex(ringTableRemoved)),
+            entryDatas.put(cursor.getInt(cursor.getColumnIndex(ringTableId)), new RingModel(
+                    cursor.getInt(cursor.getColumnIndex(ringTableId)),
+                    cursor.getString(cursor.getColumnIndex(ringTableDatePut)),
+                    cursor.getString(cursor.getColumnIndex(ringTableHourPut)),
+                    cursor.getString(cursor.getColumnIndex(ringTableDateRemoved)),
+                    cursor.getString(cursor.getColumnIndex(ringTableHourRemoved)),
                     cursor.getInt(cursor.getColumnIndex(ringTableIsRunning)),
                     cursor.getInt(cursor.getColumnIndex(ringTableTimeWeared))));
         }
@@ -149,15 +174,18 @@ public class DbManager extends SQLiteOpenHelper {
     public ArrayList<RingModel> getHistoryForMainView(boolean isDesc) {
         ArrayList<RingModel> entryDatas = new ArrayList<>();
 
-        String[] columns = new String[]{ringTableId, ringTablePut, ringTableRemoved, ringTableIsRunning, ringTableTimeWeared};
+        String[] columns = new String[]{ringTableId, ringTableDatePut, ringTableHourPut, ringTableDateRemoved, ringTableHourRemoved, ringTableIsRunning, ringTableTimeWeared};
         Cursor cursor = readableDB.query(ringTable,  columns, null, null, null, null, (isDesc) ? ringTableId + " DESC" : null);
 
         int i = 0;
 
         while (cursor.moveToNext() && i != 10) {
-            entryDatas.add(new RingModel(cursor.getInt(cursor.getColumnIndex(ringTableId)),
-                    cursor.getString(cursor.getColumnIndex(ringTablePut)),
-                    cursor.getString(cursor.getColumnIndex(ringTableRemoved)),
+            entryDatas.add(new RingModel(
+                    cursor.getInt(cursor.getColumnIndex(ringTableId)),
+                    cursor.getString(cursor.getColumnIndex(ringTableDatePut)),
+                    cursor.getString(cursor.getColumnIndex(ringTableHourPut)),
+                    cursor.getString(cursor.getColumnIndex(ringTableDateRemoved)),
+                    cursor.getString(cursor.getColumnIndex(ringTableHourRemoved)),
                     cursor.getInt(cursor.getColumnIndex(ringTableIsRunning)),
                     cursor.getInt(cursor.getColumnIndex(ringTableTimeWeared))));
             i++;
@@ -167,16 +195,17 @@ public class DbManager extends SQLiteOpenHelper {
     }
 
     /**
-     * Create a new contact only if non existent:
-     * Example: The contact named Toto does not exist, so let's create it
+     * Create a new entry
      * @param dateRemoved date at which user has removed the protection
      * @param datePut date at which user has put the protection
      * @param isRunning if the current session is running
      */
-    public long createNewDatesRing(String datePut, String dateRemoved, int isRunning) {
+    public long createNewDatesRing(String datePut, String hourPut, String dateRemoved, String hourRemoved, int isRunning) {
         ContentValues cv = new ContentValues();
-        cv.put(ringTablePut, datePut);
-        cv.put(ringTableRemoved, dateRemoved);
+        cv.put(ringTableDatePut, datePut);
+        cv.put(ringTableHourPut, hourPut);
+        cv.put(ringTableDateRemoved, dateRemoved);
+        cv.put(ringTableHourRemoved, hourRemoved);
         if (dateRemoved.equals("NOT SET YET"))
             cv.put(ringTableTimeWeared, dateRemoved);
         else
@@ -194,13 +223,15 @@ public class DbManager extends SQLiteOpenHelper {
     public HashMap<Integer, String> getAllRunningSessions() {
         HashMap <Integer, String> entryDatas = new HashMap<>();
 
-        String[] columns = new String[]{ringTableId, ringTablePut};
+        String[] columns = new String[]{ringTableId, ringTableDatePut, ringTableHourPut};
         Cursor cursor = readableDB.query(ringTable,  columns, ringTableIsRunning + "=?",
                 new String[]{"1"}, null, null, null);
 
         while (cursor.moveToNext())
+            // We concatenate date and hour to fit it inside one string
             entryDatas.put(cursor.getInt(cursor.getColumnIndex(ringTableId)),
-                            cursor.getString(cursor.getColumnIndex(ringTablePut)));
+                            cursor.getString(cursor.getColumnIndex(ringTableDatePut)) + " " +
+                            cursor.getString(cursor.getColumnIndex(ringTableHourPut)));
         cursor.close();
         return entryDatas;
     }
@@ -212,12 +243,14 @@ public class DbManager extends SQLiteOpenHelper {
      * @param dateRemoved the new dateRemoved
      * @param isRunning the new isRunning
      */
-    public void updateDatesRing(long id, String datePut, String dateRemoved, int isRunning) {
+    public void updateDatesRing(long id, String datePut, String hourPut, String dateRemoved, String hourRemoved, int isRunning) {
         if (id <= 0)
             return;
         ContentValues cv = new ContentValues();
-        cv.put(ringTablePut, datePut);
-        cv.put(ringTableRemoved, dateRemoved);
+        cv.put(ringTableDatePut, datePut);
+        cv.put(ringTableHourPut, hourPut);
+        cv.put(ringTableDateRemoved, dateRemoved);
+        cv.put(ringTableHourRemoved, hourRemoved);
         if (dateRemoved.equals("NOT SET YET"))
             cv.put(ringTableTimeWeared, dateRemoved);
         else
@@ -241,13 +274,19 @@ public class DbManager extends SQLiteOpenHelper {
         if (entryId <= 0)
             return null;
 
-        String[] columns = new String[]{ringTablePut, ringTableRemoved, ringTableTimeWeared, ringTableIsRunning};
+        String[] columns = new String[]{ringTableDatePut, ringTableHourPut, ringTableDateRemoved, ringTableDateRemoved, ringTableTimeWeared, ringTableIsRunning};
         Cursor cursor = readableDB.query(ringTable, columns,ringTableId + "=?",
                 new String[]{String.valueOf(entryId)}, null, null, null);
 
         cursor.moveToFirst();
-        RingModel data = new RingModel(-1, cursor.getString(cursor.getColumnIndex(ringTablePut)), cursor.getString(cursor.getColumnIndex(ringTableRemoved)),
-                cursor.getInt(cursor.getColumnIndex(ringTableIsRunning)), cursor.getInt(cursor.getColumnIndex(ringTableTimeWeared)));
+        RingModel data = new RingModel(
+                -1,
+                cursor.getString(cursor.getColumnIndex(ringTableDatePut)),
+                cursor.getString(cursor.getColumnIndex(ringTableHourPut)),
+                cursor.getString(cursor.getColumnIndex(ringTableDateRemoved)),
+                cursor.getString(cursor.getColumnIndex(ringTableHourRemoved)),
+                cursor.getInt(cursor.getColumnIndex(ringTableIsRunning)),
+                cursor.getInt(cursor.getColumnIndex(ringTableTimeWeared)));
 
         cursor.close();
         return data;
@@ -273,8 +312,10 @@ public class DbManager extends SQLiteOpenHelper {
         if (entryId < 0)
             return;
 
+        //TODO : Rework this function
+
         // First we catch the dateTablePut date
-        String[] columns = new String[]{ringTablePut};
+        /*String[] columns = new String[]{ringTablePut};
         Cursor cursor = readableDB.query(ringTable, columns,ringTableId + "=?",
                 new String[]{String.valueOf(entryId)}, null, null, null);
         cursor.moveToFirst();
@@ -294,7 +335,7 @@ public class DbManager extends SQLiteOpenHelper {
             writableDB.insertWithOnConflict(ringTable, null, cv, SQLiteDatabase.CONFLICT_REPLACE);
         }
         // End pause is session is set to finish
-        endPause(entryId);
+        endPause(entryId);*/
     }
 
     /**
@@ -382,14 +423,20 @@ public class DbManager extends SQLiteOpenHelper {
      */
     public RingModel getLastRunningEntry() {
 
-        String[] columns = new String[]{ringTableId, ringTablePut, ringTableRemoved, ringTableTimeWeared, ringTableIsRunning};
+        String[] columns = new String[]{ringTableId, ringTableDatePut, ringTableHourPut, ringTableDateRemoved, ringTableHourRemoved, ringTableTimeWeared, ringTableIsRunning};
         Cursor cursor = readableDB.query(ringTable, columns,ringTableIsRunning + "=?",
                 new String[]{"1"}, null, null, pauseTableId + " DESC");
 
         RingModel data = null;
         if (cursor.moveToFirst())
-            data = new RingModel(cursor.getInt(cursor.getColumnIndex(ringTableId)), cursor.getString(cursor.getColumnIndex(ringTablePut)), cursor.getString(cursor.getColumnIndex(ringTableRemoved)),
-                cursor.getInt(cursor.getColumnIndex(ringTableIsRunning)), cursor.getInt(cursor.getColumnIndex(ringTableTimeWeared)));
+            data = new RingModel(
+                    cursor.getInt(cursor.getColumnIndex(ringTableId)),
+                    cursor.getString(cursor.getColumnIndex(ringTableDatePut)),
+                    cursor.getString(cursor.getColumnIndex(ringTableHourPut)),
+                    cursor.getString(cursor.getColumnIndex(ringTableDateRemoved)),
+                    cursor.getString(cursor.getColumnIndex(ringTableHourRemoved)),
+                    cursor.getInt(cursor.getColumnIndex(ringTableIsRunning)),
+                    cursor.getInt(cursor.getColumnIndex(ringTableTimeWeared)));
         cursor.close();
         return data;
     }
@@ -401,13 +448,16 @@ public class DbManager extends SQLiteOpenHelper {
     public ArrayList<RingModel> getAllDatasForAllEntrys() {
         ArrayList<RingModel> datas = new ArrayList<>();
 
-        String[] columns = new String[]{ringTableId, ringTablePut, ringTableRemoved, ringTableIsRunning, ringTableTimeWeared};
+        String[] columns = new String[]{ringTableId, ringTableDatePut, ringTableHourPut, ringTableDateRemoved, ringTableHourRemoved,  ringTableIsRunning, ringTableTimeWeared};
         Cursor cursor = readableDB.query(ringTable,  columns, null, null, null, null, null);
 
         while (cursor.moveToNext()) {
-            datas.add(new RingModel(cursor.getInt(cursor.getColumnIndex(ringTableId)),
-                    cursor.getString(cursor.getColumnIndex(ringTablePut)),
-                    cursor.getString(cursor.getColumnIndex(ringTableRemoved)),
+            datas.add(new RingModel(
+                    cursor.getInt(cursor.getColumnIndex(ringTableId)),
+                    cursor.getString(cursor.getColumnIndex(ringTableDatePut)),
+                    cursor.getString(cursor.getColumnIndex(ringTableHourPut)),
+                    cursor.getString(cursor.getColumnIndex(ringTableDateRemoved)),
+                    cursor.getString(cursor.getColumnIndex(ringTableHourRemoved)),
                     cursor.getInt(cursor.getColumnIndex(ringTableIsRunning)),
                     cursor.getInt(cursor.getColumnIndex(ringTableTimeWeared))));
         }
@@ -428,13 +478,16 @@ public class DbManager extends SQLiteOpenHelper {
         Cursor cursor = readableDB.query(pausesTable,  columns, pauseTableEntryId + "=?", new String[]{String.valueOf(entryId)}, null, null,
                 (isDesc) ? pauseTableId + " DESC": null);
 
-        while (cursor.moveToNext()) {
-            datas.add(new RingModel(cursor.getInt(cursor.getColumnIndex(pauseTableId)),
+        //TODO : create own class for pauses
+
+        /*while (cursor.moveToNext()) {
+            datas.add(new RingModel(
+                    cursor.getInt(cursor.getColumnIndex(pauseTableId)),
                     cursor.getString(cursor.getColumnIndex(pauseTablePut)),
                     cursor.getString(cursor.getColumnIndex(pauseTableRemoved)),
                     cursor.getInt(cursor.getColumnIndex(pauseTableIsRunning)),
                     cursor.getInt(cursor.getColumnIndex(pauseTableTimeRemoved))));
-        }
+        }*/
         cursor.close();
         return datas;
     }
@@ -458,13 +511,15 @@ public class DbManager extends SQLiteOpenHelper {
         String[] columns = new String[]{pauseTableEntryId, pauseTablePut, pauseTableRemoved, pauseTableIsRunning, pauseTableTimeRemoved};
         Cursor cursor = readableDB.query(pausesTable,  columns, null, null, null, null, null);
 
-        while (cursor.moveToNext()) {
+        //TODO : create own class for pauses
+
+        /*while (cursor.moveToNext()) {
             datas.add(new RingModel(cursor.getInt(cursor.getColumnIndex(pauseTableEntryId)),
                     cursor.getString(cursor.getColumnIndex(pauseTablePut)),
                     cursor.getString(cursor.getColumnIndex(pauseTableRemoved)),
                     cursor.getInt(cursor.getColumnIndex(pauseTableIsRunning)),
                     cursor.getInt(cursor.getColumnIndex(pauseTableTimeRemoved))));
-        }
+        }*/
         cursor.close();
         return datas;
     }

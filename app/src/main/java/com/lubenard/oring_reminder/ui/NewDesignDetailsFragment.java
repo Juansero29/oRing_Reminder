@@ -49,14 +49,20 @@ public class NewDesignDetailsFragment extends Fragment implements CustomListAdap
         ArrayList<RingModel> entrysDatas = dbManager.getHistoryForMainView(true);
         //dataModels.addAll(entrysDatas);
 
+        LayoutInflater inflater = (LayoutInflater) getActivity().
+                getSystemService(getContext().LAYOUT_INFLATER_SERVICE);
+
+        View view = inflater.inflate(R.layout.main_history_one_elem, null);
+
         for (int i = 0; i != entrysDatas.size(); i++) {
 
-            LayoutInflater inflater = (LayoutInflater) getActivity().
-                    getSystemService(getContext().LAYOUT_INFLATER_SERVICE);
-            View view = inflater.inflate(R.layout.main_history_one_elem, null);
             view.setTag(Integer.toString((int) entrysDatas.get(i).getId()));
             TextView textView_date = view.findViewById(R.id.main_history_date);
-            textView_date.setText(entrysDatas.get(i).getDatePut().split(" ")[0]);
+
+            if (entrysDatas.get(i).getIs_session_one_day())
+                textView_date.setText(entrysDatas.get(i).getDatePut() + " - " + entrysDatas.get(i).getDateRemoved());
+            else
+                textView_date.setText(entrysDatas.get(i).getDatePut());
 
             TextView textView_hour_from = view.findViewById(R.id.custom_view_date_weared_to);
             textView_hour_from.setText(entrysDatas.get(i).getDatePut().split(" ")[1]);
